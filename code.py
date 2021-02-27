@@ -4,6 +4,9 @@ import re
 import os
 from pathlib import Path
 import csv
+import traceback
+
+output_type = 'dem' #either 'dem' or 'float32'
 
 input_files = [
     'hirds_rainfalldepth_duration0.5_ARI1.58.tif',
@@ -166,35 +169,58 @@ def convert(filename, output_folder):
                 # depths will be greater than zero
             max = floats.max()
             min = np.min(floats[np.nonzero(floats)])
-
-            #Taken from https://gis.stackexchange.com/a/272805
-            zeros = np.zeros(floats.shape)
-            mask = floats != 0
-            r = np.where(mask, np.floor_divide((100000 + floats * 10), 65536), zeros)
-            g = np.where(mask, np.floor_divide((100000 + floats * 10), 256) - r * 256, zeros)
-            b = np.where(mask, np.floor(100000 + floats * 10) - r * 65536 - g * 256, zeros)
-
-            # Write to a new 3-channel 8-bit file.
-            profile = src.profile
-            profile.update(dtype=rasterio.uint8, count=3, compress='lzw', nodata=0)
             output_file = os.path.join(output_folder, 'dem_source_data.tif')
-            with rasterio.open(output_file, 'w', **profile) as dst:
-                #dst.write(treated_as_ints.astype(rasterio.uint8))
-                dst.write_band(1, r.astype(rasterio.uint8))
-                dst.write_band(2, g.astype(rasterio.uint8))
-                dst.write_band(3, b.astype(rasterio.uint8))
+
+            if output_type == 'dem':
+                #Taken from https://gis.stackexchange.com/a/272805
+                #floats = floats*10
+                zeros = np.zeros(floats.shape)
+                mask = floats != 0
+                r = np.where(mask, np.floor_divide((100000 + floats * 10), 65536), zeros)
+                g = np.where(mask, np.floor_divide((100000 + floats * 10), 256) - r * 256, zeros)
+                b = np.where(mask, np.floor(100000 + floats * 10) - r * 65536 - g * 256, zeros)
+
+                # Write to a new 3-channel 8-bit file.
+                profile = src.profile
+                profile.update(dtype=rasterio.uint8, count=3, compress='lzw',
+                    nodata=0)
+                with rasterio.open(output_file, 'w', **profile) as dst:
+                    #dst.write(treated_as_ints.astype(rasterio.uint8))
+                    dst.write_band(1, r.astype(rasterio.uint8))
+                    dst.write_band(2, g.astype(rasterio.uint8))
+                    dst.write_band(3, b.astype(rasterio.uint8))
+
+            elif output_type == 'float32':
+                treated_as_ints = np.zeros((4, floats.shape[0], floats.shape[1]))
+                for i, row in enumerate(floats):
+                    for j, cell in enumerate(row):
+                        a,b,c,d = np.frombuffer(cell.tobytes(),
+                            dtype=np.uint8)
+                        treated_as_ints[0][i][j] = d
+                        treated_as_ints[1][i][j] = c
+                        treated_as_ints[2][i][j] = b
+                        treated_as_ints[3][i][j] = a
+                
+                # Write to a new 4-channel 8-bit file.
+                profile = src.profile
+                profile.update(dtype=rasterio.uint8, count=4, compress='lzw',
+                    nodata=0)
+                with rasterio.open(output_file, 'w', **profile) as dst:
+                    dst.write(treated_as_ints.astype(rasterio.uint8))
+
             os.system("/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 "+\
                 "/usr/local/bin/gdal2tiles.py --xyz -w 'leaflet' -z '5' "+\
                 "-s 'EPSG:27200' '"+output_file+"' '"+output_folder+"'")
         return min, max
-    except:
-        print("Could not open",filename)
+    except Exception as e:
+        print(traceback.format_exc())
         return None, None
 
 
 with open('min_max.csv', 'w', newline='') as minmax_file:
     minmax_writer = csv.writer(minmax_file)
-    minmax_writer.writerow(['ARI (years)','Duration (hours)', 'Min depth (mm)' 'Max depth (mm)'])
+    minmax_writer.writerow(['ARI (years)','Duration (hours)', 'Min depth (mm)',
+        'Max depth (mm)'])
 
     for filename in input_files:
         print(filename)
