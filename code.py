@@ -209,8 +209,9 @@ def convert(filename, output_folder):
                     dst.write(treated_as_ints.astype(rasterio.uint8))
 
             os.system("/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 "+\
-                "/usr/local/bin/gdal2tiles.py --xyz -w 'leaflet' -z '5' "+\
-                "-s 'EPSG:27200' '"+output_file+"' '"+output_folder+"'")
+                "/usr/local/bin/gdal2tiles.py --xyz --resampling='near' "+\
+                "--webviewer='leaflet' --zoom='6' "+\
+                "--s_srs='EPSG:27200' '"+output_file+"' '"+output_folder+"'")
         return min, max
     except Exception as e:
         print(traceback.format_exc())
