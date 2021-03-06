@@ -7,6 +7,9 @@ import csv
 import traceback
 
 output_type = 'dem' #either 'dem' or 'float32'
+# 'dem' output is run through gdal2tiles process to create tiles, but this is
+# not done with 'float32' output as gdal2tiles ignores anything more than the
+# first three channels
 
 input_files = [
     'hirds_rainfalldepth_duration0.5_ARI1.58.tif',
@@ -185,33 +188,36 @@ def convert(filename, output_folder):
                 profile.update(dtype=rasterio.uint8, count=3, compress='lzw',
                     nodata=0)
                 with rasterio.open(output_file, 'w', **profile) as dst:
-                    #dst.write(treated_as_ints.astype(rasterio.uint8))
                     dst.write_band(1, r.astype(rasterio.uint8))
                     dst.write_band(2, g.astype(rasterio.uint8))
                     dst.write_band(3, b.astype(rasterio.uint8))
 
+                os.system("/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 "+\
+                    "/usr/local/bin/gdal2tiles.py --xyz --resampling='near' "+\
+                    "--webviewer='leaflet' --zoom='6' "+\
+                    "--s_srs='EPSG:27200' '"+output_file+"' '"+output_folder+"'")
+
             elif output_type == 'float32':
-                treated_as_ints = np.zeros((4, floats.shape[0], floats.shape[1]))
-                for i, row in enumerate(floats):
-                    for j, cell in enumerate(row):
-                        a,b,c,d = np.frombuffer(cell.tobytes(),
-                            dtype=np.uint8)
-                        treated_as_ints[0][i][j] = d
-                        treated_as_ints[1][i][j] = c
-                        treated_as_ints[2][i][j] = b
-                        treated_as_ints[3][i][j] = a
+                floats = np.full(floats.shape, 3.14, dtype="float32")
+                bytes = floats.tobytes()
+                treated_as_ints = np.reshape(
+                    np.frombuffer(bytes, dtype=np.uint8),
+                    (floats.shape[0], floats.shape[1], 4)
+                )
+                output_array = np.array([
+                    treated_as_ints[:,:,0],
+                    treated_as_ints[:,:,1],
+                    treated_as_ints[:,:,2],
+                    treated_as_ints[:,:,3],
+                ])
                 
                 # Write to a new 4-channel 8-bit file.
                 profile = src.profile
                 profile.update(dtype=rasterio.uint8, count=4, compress='lzw',
                     nodata=0)
                 with rasterio.open(output_file, 'w', **profile) as dst:
-                    dst.write(treated_as_ints.astype(rasterio.uint8))
+                    dst.write(output_array.astype(rasterio.uint8))
 
-            os.system("/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 "+\
-                "/usr/local/bin/gdal2tiles.py --xyz --resampling='near' "+\
-                "--webviewer='leaflet' --zoom='6' "+\
-                "--s_srs='EPSG:27200' '"+output_file+"' '"+output_folder+"'")
         return min, max
     except Exception as e:
         print(traceback.format_exc())
