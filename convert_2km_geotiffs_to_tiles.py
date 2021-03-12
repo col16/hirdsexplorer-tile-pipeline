@@ -11,6 +11,8 @@ output_type = 'dem' #either 'dem' or 'float32'
 # not done with 'float32' output as gdal2tiles ignores anything more than the
 # first three channels
 
+input_folder = 'Original data'
+
 input_files = [
     'hirds_rainfalldepth_duration0.5_ARI1.58.tif',
     'hirds_rainfalldepth_duration0.5_ARI2.0.tif',
@@ -166,7 +168,7 @@ def convert(filename, output_folder):
     # Convert tiff with 1 channel of 32-bit floats to a file with 3 channels of
     # 8-bit integers
     try:
-        with rasterio.open(os.path.join('Original data',filename)) as src:
+        with rasterio.open(os.path.join(input_folder,filename)) as src:
             floats = src.read(1)
             floats[floats==src.nodata]=0 # replace 'nodata' value with zero, as all
                 # depths will be greater than zero
