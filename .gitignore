@@ -1,5 +1,7 @@
 *.tif
+*.csv
 
 env/
 tiles/
 Original data/
+ignore/
