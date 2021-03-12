@@ -1,2 +1,0 @@
-/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 /usr/local/bin/gdal2tiles.py --xyz -w 'leaflet' -z '5' -s 'EPSG:27200' 'example.tif' tiles
-
