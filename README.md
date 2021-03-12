@@ -1,4 +1,4 @@
-This code generates the tiles plotted on the (hirdsexplorer.nz)[https://hirdsexplorer.nz/] website (see repo at [https://github.com/col16/hirdsexplorer](https://github.com/col16/hirdsexplorer)).
+This code generates the tiles plotted on the [hirdsexplorer.nz](https://hirdsexplorer.nz/) website (see repo at [https://github.com/col16/hirdsexplorer](https://github.com/col16/hirdsexplorer)).
 
 Dependancies are Python 3, [gdal2tiles](https://gdal.org/programs/gdal2tiles.html) and those listed in [requirements.txt](requirements.txt).
 
