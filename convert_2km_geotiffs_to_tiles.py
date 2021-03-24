@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 import csv
 import traceback
+from globalmaptiles import GlobalMercator
 
 output_type = 'dem' #either 'dem' or 'float32'
 # 'dem' output is run through gdal2tiles process to create tiles, but this is
@@ -160,15 +161,30 @@ input_files = [
     'hirds_rainfalldepth_duration120.0_ARI250.0.tif',
 ]
 
+gm = GlobalMercator()
+top_left_tile = gm.TileBounds(61, 25, 6) #using TMS numbering system
+bottom_right_tile = gm.TileBounds(63, 22, 6)
+
+
 filename_regex = re.compile(
     r'hirds_rainfalldepth_duration(?P<duration>\d+.\d+)_ARI(?P<ari>\d+.\d+).tif')
 
 
-def convert(filename, output_folder):
+def convert(filename, output_folder, xmin, ymin, xmax, ymax, resolution):
     # Convert tiff with 1 channel of 32-bit floats to a file with 3 channels of
     # 8-bit integers
+
+    #Start by reprojecting to EPSG:3857 *before* doing anything else, so that
+    #GDAL interpolates values correctly
+    as_3857_filename = os.path.join(
+        output_folder,os.path.splitext(filename)[0]+"_as_3857.tif")
+    os.system("gdalwarp -s_srs EPSG:27200 -t_srs EPSG:3857 -te "+str(xmin)+\
+        " "+str(ymin)+" "+str(xmax)+" "+str(ymax)+" -tr "+str(resolution)+" "+\
+        str(resolution)+" -tap -r bilinear -overwrite -co COMPRESS=LZW '"+\
+        os.path.join(input_folder,filename)+"' '"+as_3857_filename+"'")
+
     try:
-        with rasterio.open(os.path.join(input_folder,filename)) as src:
+        with rasterio.open(as_3857_filename) as src:
             floats = src.read(1)
             floats[floats==src.nodata]=0 # replace 'nodata' value with zero, as all
                 # depths will be greater than zero
@@ -197,7 +213,7 @@ def convert(filename, output_folder):
                 os.system("/usr/local/Cellar/python@3.9/3.9.1_8/bin/python3 "+\
                     "/usr/local/bin/gdal2tiles.py --xyz --resampling='near' "+\
                     "--webviewer='leaflet' --zoom='6' "+\
-                    "--s_srs='EPSG:27200' '"+output_file+"' '"+output_folder+"'")
+                    "--s_srs='EPSG:3857' '"+output_file+"' '"+output_folder+"'")
 
             elif output_type == 'float32':
                 floats = np.full(floats.shape, 3.14, dtype="float32")
@@ -225,6 +241,13 @@ def convert(filename, output_folder):
         print(traceback.format_exc())
         return None, None
 
+(xmin, ymin, xmax, ymax) = (
+    top_left_tile[0],
+    bottom_right_tile[1],
+    bottom_right_tile[2],
+    top_left_tile[3],
+    )
+resolution = gm.Resolution(6)
 
 with open('min_max.csv', 'w', newline='') as minmax_file:
     minmax_writer = csv.writer(minmax_file)
@@ -238,5 +261,6 @@ with open('min_max.csv', 'w', newline='') as minmax_file:
         duration_folder = d['duration']+'hr'
         combined_folder = os.path.join('tiles',ari_folder,duration_folder)
         Path(combined_folder).mkdir(parents=True, exist_ok=True)
-        min, max = convert(filename, combined_folder)
+        min, max = convert(filename, combined_folder,
+            xmin, ymin, xmax, ymax, resolution)
         minmax_writer.writerow([d['ari'],d['duration'],min,max])        
